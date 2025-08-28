@@ -6,13 +6,12 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="p-4">
-
   <h2>Tambah Data Invoice</h2>
   <form id="invoiceForm" class="mb-4">
+    <input class="form-control mb-2" name="tanggal" type="date" required>
     <input class="form-control mb-2" name="namaProduk" placeholder="Nama Produk" required>
     <input class="form-control mb-2" name="jumlah" type="number" placeholder="Jumlah" required>
     <input class="form-control mb-2" name="harga" type="number" placeholder="Harga" required>
-    <input class="form-control mb-2" name="tanggalOrder" type="date" required>
     <input class="form-control mb-2" name="pembeli" placeholder="Nama Pembeli" required>
     <button class="btn btn-primary" type="submit">Simpan</button>
   </form>
@@ -21,77 +20,93 @@
   <table class="table table-bordered" id="invoiceTable">
     <thead>
       <tr>
-        <th>Produk</th><th>Jumlah</th><th>Harga</th><th>Total</th><th>Tanggal</th><th>Pembeli</th><th>Aksi</th>
+        <th>Tanggal</th><th>Produk</th><th>Jumlah</th><th>Harga</th>
+        <th>Total</th><th>Pembeli</th><th>No. Invoice</th><th>Aksi</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
-  <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbz1WBcLQWAOPRUuKMJlOkcf2ZRRDAmw0dSye12lxUoEgft5n6y8pmp2V1NpzlQ6QA57/exec"; // ganti dengan URL Apps Script
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbz3mYG9llglGDqAsWwPYUaJwznPVePv84oPtSfU7ftaUKe_7hVr9bDY6mIoEhhHuOp2/exec"; // ganti URL
 
-    document.getElementById("invoiceForm").addEventListener("submit", async function(e) {
-      e.preventDefault();
-      const formData = new FormData(this);
+// POST pakai form-urlencoded
+async function postForm(data) {
+  const params = new URLSearchParams();
+  Object.keys(data).forEach(k => params.append(k, data[k]));
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: params.toString()
+  });
+  return res.json();
+}
 
-      const data = {
-        namaProduk: formData.get("namaProduk"),
-        jumlah: formData.get("jumlah"),
-        harga: formData.get("harga"),
-        total: formData.get("jumlah") * formData.get("harga"),
-        tanggalOrder: formData.get("tanggalOrder"),
-        pembeli: formData.get("pembeli"),
-      };
+document.getElementById("invoiceForm").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const f = e.target;
+  const data = {
+    tanggal: f.tanggal.value,
+    namaProduk: f.namaProduk.value,
+    jumlah: f.jumlah.value,
+    harga: f.harga.value,
+    total: Number(f.jumlah.value) * Number(f.harga.value),
+    pembeli: f.pembeli.value
+  };
 
-      await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify(data)
-      });
-
-      this.reset();
+  try {
+    const json = await postForm(data);
+    if (json.status === "success") {
+      alert("✅ Data tersimpan. Invoice: " + json.invoice);
+      f.reset();
       loadData();
-    });
-
-    async function loadData() {
-      const res = await fetch(API_URL);
-      const data = await res.json();
-
-      const tbody = document.querySelector("#invoiceTable tbody");
-      tbody.innerHTML = "";
-
-      data.forEach((row, i) => {
-        tbody.innerHTML += `
-          <tr>
-            <td>${row.namaProduk}</td>
-            <td>${row.jumlah}</td>
-            <td>${row.harga}</td>
-            <td>${row.total}</td>
-            <td>${row.tanggalOrder}</td>
-            <td>${row.pembeli}</td>
-            <td><button onclick="printInvoice(${i})" class="btn btn-sm btn-success">Cetak</button></td>
-          </tr>
-        `;
-      });
+    } else {
+      alert("⚠️ Gagal: " + (json.message || JSON.stringify(json)));
     }
+  } catch (err) {
+    console.error(err);
+    alert("❌ Error simpan data");
+  }
+});
 
-    function printInvoice(i) {
-      const row = document.querySelectorAll("#invoiceTable tbody tr")[i].children;
-      const win = window.open("", "Cetak Invoice", "width=600,height=400");
-      win.document.write(`
-        <h2>Invoice</h2>
-        <p>Produk: ${row[0].innerText}</p>
-        <p>Jumlah: ${row[1].innerText}</p>
-        <p>Harga: Rp${row[2].innerText}</p>
-        <p>Total: Rp${row[3].innerText}</p>
-        <p>Tanggal: ${row[4].innerText}</p>
-        <p>Pembeli: ${row[5].innerText}</p>
-        <hr>
-        <p><i>Terima kasih sudah berbelanja.</i></p>
-      `);
-      win.print();
-    }
+async function loadData() {
+  const res = await fetch(API_URL + "?t=" + Date.now());
+  const data = await res.json();
+  const tbody = document.querySelector("#invoiceTable tbody");
+  tbody.innerHTML = "";
+  data.forEach((r, i) => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${r.tanggal}</td>
+        <td>${r.namaProduk}</td>
+        <td>${r.jumlah}</td>
+        <td>${r.harga}</td>
+        <td>${r.total}</td>
+        <td>${r.pembeli}</td>
+        <td>${r.invoice}</td>
+        <td><button onclick="printInvoice(${i})" class="btn btn-sm btn-success">Cetak</button></td>
+      </tr>`;
+  });
+}
 
-    loadData();
-  </script>
+function printInvoice(i) {
+  const row = document.querySelectorAll("#invoiceTable tbody tr")[i].children;
+  const win = window.open("", "Cetak Invoice", "width=600,height=400");
+  win.document.write(`
+    <h2>Invoice</h2>
+    <p>No: ${row[6].innerText}</p>
+    <p>Tanggal: ${row[0].innerText}</p>
+    <p>Produk: ${row[1].innerText}</p>
+    <p>Jumlah: ${row[2].innerText}</p>
+    <p>Harga: Rp${row[3].innerText}</p>
+    <p>Total: Rp${row[4].innerText}</p>
+    <p>Pembeli: ${row[5].innerText}</p>
+    <hr><p><i>Terima kasih.</i></p>
+  `);
+  win.print();
+}
+
+loadData();
+</script>
 </body>
 </html>
